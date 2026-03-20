@@ -114,6 +114,7 @@ select.form-input option{background:var(--card2);}
 .toast.success{border-color:var(--green);color:var(--green);}
 .toast.error{border-color:var(--red);color:var(--red);}
 ::-webkit-scrollbar{width:0;}
+/* ── Status Alert Dialog ── */
 .status-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:2000;padding:24px;backdrop-filter:blur(4px);}
 .status-dialog-overlay.show{display:flex;}
 .status-dialog{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 24px;width:100%;max-width:340px;text-align:center;box-shadow:var(--shadow);}
@@ -123,14 +124,10 @@ select.form-input option{background:var(--card2);}
 .status-dialog-time{font-size:13px;background:var(--card2);border-radius:10px;padding:10px 14px;margin-bottom:20px;color:var(--text);}
 .status-dialog-time span{color:var(--accent);font-weight:700;}
 .status-dialog-btns{display:flex;flex-direction:column;gap:10px;}
+/* ── GPS Accuracy Warning ── */
 .accuracy-warn{background:rgba(255,215,64,0.12);border:1px solid rgba(255,215,64,0.4);border-radius:12px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;}
 .accuracy-warn-icon{font-size:20px;flex-shrink:0;}
 .accuracy-warn-text{font-size:12px;color:var(--yellow);line-height:1.5;}
-/* ── Camera Permission Dialog ── */
-.cam-perm-box{background:rgba(108,99,255,0.12);border:1px solid rgba(108,99,255,0.4);border-radius:14px;padding:16px;display:flex;align-items:flex-start;gap:12px;width:100%;}
-.cam-perm-icon{font-size:28px;flex-shrink:0;}
-.cam-perm-text{font-size:13px;color:var(--text2);line-height:1.6;}
-.cam-perm-text b{color:var(--text);}
 </style>
 </head>
 <body>
@@ -241,32 +238,35 @@ select.form-input option{background:var(--card2);}
       <button class="btn btn-secondary" id="btn-reg-cancel">ยกเลิก</button>
     </div>
     <div id="reg-step2" style="display:none;">
-      <div class="face-wrap">
-        <div class="alert-card warning" style="width:100%;">
-          <div class="alert-icon">📸</div>
-          <div class="alert-title" style="color:var(--yellow);">ถ่ายรูปใบหน้า 3 มุม</div>
-          <div class="alert-desc" id="reg-angle-desc">มุมที่ 1: หันหน้าตรง มองกล้อง</div>
-        </div>
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <div id="reg-dot-1" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">1</div>
-          <div id="reg-dot-2" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">2</div>
-          <div id="reg-dot-3" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">3</div>
-        </div>
-        <div class="camera-container">
-          <video id="reg2-video" autoplay playsinline muted></video>
-          <canvas id="reg2-canvas"></canvas>
-          <div class="face-frame" id="reg2-face-frame"></div>
-        </div>
-        <div class="face-status-text" id="reg2-status">กำลังเปิดกล้อง...</div>
-        <div class="face-sub-text" id="reg2-sub">ใบหน้าต้องชัดเจน มีแสงเพียงพอ</div>
-        <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
-          <button class="btn btn-success"   id="btn-reg-capture"   disabled>📸 ถ่ายรูป</button>
-          <button class="btn btn-secondary" id="btn-reg-retry-cam" style="display:none;">🔄 ลองเปิดกล้องใหม่</button>
-          <button class="btn btn-secondary" id="btn-reg-back-step1">‹ กลับแก้ข้อมูล</button>
-        </div>
-      </div>
+  <div class="face-wrap">
+    <div class="alert-card warning" style="width:100%;">
+      <div class="alert-icon">📸</div>
+      <div class="alert-title" style="color:var(--yellow);">ถ่ายรูปใบหน้า 3 มุม</div>
+      <div class="alert-desc" id="reg-angle-desc">มุมที่ 1: หันหน้าตรง มองกล้อง</div>
+    </div>
+
+    <!-- Step dots -->
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <div id="reg-dot-1" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">1</div>
+      <div id="reg-dot-2" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">2</div>
+      <div id="reg-dot-3" style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text2);">3</div>
+    </div>
+
+    <div class="camera-container">
+      <video id="reg2-video" autoplay playsinline muted></video>
+      <canvas id="reg2-canvas"></canvas>
+      <div class="face-frame" id="reg2-face-frame"></div>
+    </div>
+    <div class="face-status-text" id="reg2-status">กำลังเปิดกล้อง...</div>
+    <div class="face-sub-text" id="reg2-sub">ใบหน้าต้องชัดเจน มีแสงเพียงพอ</div>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
+      <button class="btn btn-success"   id="btn-reg-capture"   disabled>📸 ถ่ายรูป</button>
+      <button class="btn btn-secondary" id="btn-reg-retry-cam" style="display:none;">🔄 ลองเปิดกล้องใหม่</button>
+      <button class="btn btn-secondary" id="btn-reg-back-step1">‹ กลับแก้ข้อมูล</button>
     </div>
   </div>
+</div>
+</div><!-- /screen-register -->
 
   <!-- GPS -->
   <div class="screen" id="screen-gps">
@@ -394,7 +394,7 @@ var lineUserId       = '';
 var lineUserName     = '';
 var lineUserPic      = '';
 var checkActionFired = false;
-var gpsMaxAccuracy   = 100;
+var gpsMaxAccuracy   = 100; // โหลดจาก Config: GPS_ACCURACY_MAX (เมตร)
 
 // ==========================================
 // INIT
@@ -407,8 +407,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (lineUserId) { showLineProfile(); }
 
+  // startApp ทันที ไม่รอ ไม่มีจอดำ
   startApp();
 
+  // LIFF background - ถ้าเปิดใน LINE browser
   if (!lineUserId) {
     try {
       liff.init({ liffId: LIFF_ID })
@@ -430,8 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(function() {});
     } catch(e) {}
   }
-});
-
+})
 function startApp() {
   startClock();
   bindEvents();
@@ -473,6 +474,7 @@ function checkAutoLogin() {
     .then(function(emp) {
       if (emp && emp.emp_id) {
         currentEmp = emp;
+        // แสดง profile card พร้อมชื่อพนักงาน
         var picEl = document.getElementById('profile-pic');
         if (lineUserPic) {
           picEl.src = lineUserPic;
@@ -681,48 +683,19 @@ function goToRegStep2() {
   document.getElementById('reg-step1').style.display = 'none';
   document.getElementById('reg-step2').style.display = 'block';
   document.getElementById('btn-reg-retry-cam').style.display = 'none';
-  resetRegAngles();
+  resetRegAngles();   // ← รีเซ็ต angles ทุกครั้ง
   updateRegAngleUI();
   startReg2Camera();
 }
 
-// ==========================================
-// ✅ FIX: ขอ Camera Permission ผ่าน LIFF ก่อน
-// ==========================================
-function requestCameraPermission(callback) {
-  // ถ้าอยู่ใน LINE LIFF browser ให้ขอ permission กล้องผ่าน liff ก่อน
-  if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
-    liff.requestPermission('camera')
-      .then(function() { callback(); })
-      .catch(function(err) {
-        // ถึงแม้ reject ก็ลอง getUserMedia ต่อ (เผื่อ permission ให้แล้วจาก settings)
-        console.warn('liff.requestPermission camera:', err);
-        callback();
-      });
-  } else {
-    // เปิดในเบราว์เซอร์ปกติ ไม่ต้องขอผ่าน liff
-    callback();
-  }
-}
-
 function startReg2Camera() {
-  document.getElementById('reg2-status').textContent   = 'กำลังขอสิทธิ์กล้อง...';
+  document.getElementById('reg2-status').textContent   = 'กำลังเปิดกล้อง...';
   document.getElementById('btn-reg-capture').disabled  = true;
   document.getElementById('reg2-face-frame').className = 'face-frame';
 
   if (reg2Stream) { reg2Stream.getTracks().forEach(function(t){ t.stop(); }); reg2Stream = null; }
 
-  // ✅ ขอ permission ก่อนแล้วค่อยเปิดกล้อง
-  requestCameraPermission(function() {
-    document.getElementById('reg2-status').textContent = 'กำลังเปิดกล้อง...';
-
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'user',
-        width: { ideal: 640 },
-        height: { ideal: 480 }
-      }
-    })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     .then(function(stream) {
       reg2Stream = stream;
       var v = document.getElementById('reg2-video');
@@ -738,14 +711,13 @@ function startReg2Camera() {
       }, 3000);
     })
     .catch(function(e) {
-      var msg = e.name === 'NotAllowedError'  ? 'ไม่ได้รับอนุญาตใช้กล้อง\nกรุณาอนุญาตกล้องใน Settings → LINE → Camera' :
+      var msg = e.name === 'NotAllowedError'  ? 'ไม่ได้รับอนุญาตใช้กล้อง' :
                 e.name === 'NotFoundError'    ? 'ไม่พบกล้องในอุปกรณ์' :
-                e.name === 'NotReadableError' ? 'กล้องถูกใช้งานอยู่ ลองปิดแอปอื่นแล้วลองใหม่' :
+                e.name === 'NotReadableError' ? 'กล้องถูกใช้งานอยู่' :
                 'เปิดกล้องไม่ได้: ' + e.message;
       document.getElementById('reg2-status').textContent = '❌ ' + msg;
       document.getElementById('btn-reg-retry-cam').style.display = 'flex';
     });
-  });
 }
 
 // เก็บ descriptors 3 มุม
@@ -768,6 +740,7 @@ function updateRegAngleUI() {
   document.getElementById('reg-angle-desc').textContent = a.label;
   document.getElementById('btn-reg-capture').textContent = a.btn;
 
+  // อัปเดต dots
   for (var i = 1; i <= 3; i++) {
     var dot = document.getElementById('reg-dot-' + i);
     if (i < regAngle + 1) {
@@ -808,18 +781,21 @@ function doRegCapture() {
         return null;
       }
 
+      // บันทึก descriptor มุมนี้
       regDescriptors.push(Array.from(det.descriptor));
       regAngle++;
 
       frame.className = 'face-frame success';
 
       if (regAngle < 3) {
+        // ยังไม่ครบ 3 มุม → ถ่ายต่อ
         updateRegAngleUI();
         status.textContent = '✅ มุมที่ ' + regAngle + ' สำเร็จ! ถ่ายต่อได้เลย';
         document.getElementById('btn-reg-capture').disabled = false;
         return null;
       }
 
+      // ครบ 3 มุม → คำนวณ average descriptor
       status.textContent = '✅ ครบ 3 มุม กำลังบันทึก...';
       var avgDescriptor = averageDescriptors(regDescriptors);
       showLoading('กำลังบันทึกข้อมูล...');
@@ -895,6 +871,7 @@ function doRegCapture() {
     });
 }
 
+// คำนวณค่าเฉลี่ย descriptor จาก 3 มุม
 function averageDescriptors(descriptors) {
   var len = descriptors[0].length;
   var avg = new Array(len).fill(0);
@@ -955,6 +932,8 @@ function startCheckin(mode) {
     });
 }
 
+// loadShiftAndGo is defined above
+
 // ==========================================
 // GPS
 // ==========================================
@@ -989,6 +968,7 @@ function startGPS() {
       var acc = Math.round(pos.coords.accuracy);
       gpsData = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: acc };
 
+      // ── ตรวจสอบ accuracy: ถ้าเกิน threshold = ใช้ตำแหน่งโดยประมาณ ──
       if (acc > gpsMaxAccuracy) {
         document.getElementById('g-accuracy').innerHTML =
           '<span style="color:var(--red);">±' + acc + ' เมตร ❌</span>';
@@ -996,6 +976,8 @@ function startGPS() {
         var warnText = document.getElementById('g-accuracy-warn-text');
         warnText.textContent = 'GPS ความแม่นยำต่ำ กรุณาเลือก "ตำแหน่งที่แน่นอน"';
         warnEl.style.display = 'flex';
+        // ยังไม่ lock ปุ่ม Next ทันที — รอให้ processGPS ตัดสินจากระยะทางเอง
+        // แต่ถ้า accuracy เกิน 2× threshold ถือว่าใช้ไม่ได้เลย
         if (acc > gpsMaxAccuracy * 2) {
           document.getElementById('gps-result-block').style.display = 'block';
           document.getElementById('gps-result-block').innerHTML =
@@ -1031,6 +1013,7 @@ function processGPS() {
   var distance = calcDistance(gpsData.lat, gpsData.lng, parseFloat(emp.location_lat), parseFloat(emp.location_lng));
   var radius   = parseInt(emp.radius_m) || 50;
   var isInZone = distance <= radius;
+  // g-accuracy แสดงผลแล้วใน startGPS พร้อม ✅/❌
   document.getElementById('g-distance').innerHTML   = '<span class="' + (isInZone ? 'zone-ok' : 'zone-fail') + '">' + distance + ' เมตร</span>';
   document.getElementById('g-coord').textContent    = gpsData.lat.toFixed(5) + ', ' + gpsData.lng.toFixed(5);
   var rb = document.getElementById('gps-result-block');
@@ -1072,7 +1055,7 @@ function stopAllCameras() {
 
 function startVerifyCamera() {
   document.getElementById('verify-face-frame').className  = 'face-frame scanning';
-  document.getElementById('face-status-text').textContent = 'กำลังขอสิทธิ์กล้อง...';
+  document.getElementById('face-status-text').textContent = 'กำลังเปิดกล้อง...';
   document.getElementById('face-sub-text').textContent    = 'หันหน้าตรง มองกล้องค้างไว้';
   document.getElementById('confidence-fill').style.width  = '0%';
   document.getElementById('confidence-text').textContent  = 'ความมั่นใจ: 0%';
@@ -1080,17 +1063,7 @@ function startVerifyCamera() {
   if (verifyStream) { verifyStream.getTracks().forEach(function(t){ t.stop(); }); verifyStream = null; }
   if (autoScanInterval) { clearInterval(autoScanInterval); autoScanInterval = null; }
 
-  // ✅ ขอ permission ก่อนแล้วค่อยเปิดกล้อง
-  requestCameraPermission(function() {
-    document.getElementById('face-status-text').textContent = 'กำลังเปิดกล้อง...';
-
-    navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'user',
-        width: { ideal: 640 },
-        height: { ideal: 480 }
-      }
-    })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     .then(function(stream) {
       verifyStream = stream;
       var v = document.getElementById('verify-video');
@@ -1106,14 +1079,13 @@ function startVerifyCamera() {
       }, 3000);
     })
     .catch(function(e) {
-      var msg = e.name === 'NotAllowedError'  ? 'ไม่ได้รับอนุญาตใช้กล้อง\nกรุณาอนุญาตกล้องใน Settings → LINE → Camera' :
+      var msg = e.name === 'NotAllowedError'  ? 'ไม่ได้รับอนุญาตใช้กล้อง' :
                 e.name === 'NotFoundError'    ? 'ไม่พบกล้องในอุปกรณ์' :
-                e.name === 'NotReadableError' ? 'กล้องถูกใช้งานอยู่ ลองปิดแอปอื่นแล้วลองใหม่' :
+                e.name === 'NotReadableError' ? 'กล้องถูกใช้งานอยู่' :
                 'เปิดกล้องไม่ได้: ' + e.message;
       document.getElementById('face-status-text').textContent = '❌ ' + msg;
       document.getElementById('btn-retry-face').style.display = 'flex';
     });
-  });
 }
 
 function startAutoScan() {
@@ -1125,7 +1097,7 @@ function startAutoScan() {
     faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
       .withFaceLandmarks().withFaceDescriptor()
       .then(function(det) {
-        if (checkActionFired) return;
+        if (checkActionFired) return; // ── ป้องกัน Promise ค้างที่ resolve ช้า ──
         if (!det) {
           document.getElementById('verify-face-frame').className    = 'face-frame scanning';
           document.getElementById('face-status-text').textContent   = '👀 มองกล้องตรงๆ...';
@@ -1143,7 +1115,7 @@ function startAutoScan() {
           scanCount++;
           document.getElementById('verify-face-frame').className = 'face-frame success';
           if (scanCount >= 2) {
-            checkActionFired = true;
+            checkActionFired = true; // ── set ก่อน clearInterval ──
             clearInterval(autoScanInterval); autoScanInterval = null;
             document.getElementById('face-status-text').textContent     = '✅ ยืนยันตัวตนสำเร็จ!';
             document.getElementById('face-sub-text').textContent        = 'กำลังบันทึก...';
