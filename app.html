@@ -46,6 +46,18 @@ body{font-family:'Sarabun','Segoe UI',sans-serif;background:var(--bg);color:var(
 .menu-title{font-size:16px;font-weight:700;margin-bottom:3px;}
 .menu-desc{font-size:12px;color:var(--text2);}
 .menu-arrow{color:var(--text2);font-size:18px;}
+/* ── Branch Selection ── */
+.branch-wrap{padding:20px;display:flex;flex-direction:column;gap:14px;}
+.branch-card{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .2s;box-shadow:var(--shadow);}
+.branch-card:active{transform:scale(0.97);}
+.branch-card.selected{border-color:var(--accent);background:rgba(108,99,255,0.1);}
+.branch-card-icon{width:52px;height:52px;border-radius:14px;background:rgba(108,99,255,0.15);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;}
+.branch-card-info{flex:1;}
+.branch-card-name{font-size:16px;font-weight:700;margin-bottom:3px;}
+.branch-card-coord{font-size:11px;color:var(--text2);}
+.branch-card-check{font-size:22px;color:var(--accent);opacity:0;}
+.branch-card.selected .branch-card-check{opacity:1;}
+/* ── Register ── */
 .reg-wrap{padding:20px;display:flex;flex-direction:column;gap:16px;}
 .reg-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
 .reg-title{font-size:16px;font-weight:700;margin-bottom:16px;}
@@ -102,8 +114,6 @@ select.form-input option{background:var(--card2);}
 .alert-icon{font-size:40px;margin-bottom:10px;}
 .alert-title{font-size:16px;font-weight:700;color:var(--red);}
 .alert-desc{font-size:13px;color:var(--text2);margin-top:6px;}
-.liff-init{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:9999;}
-.liff-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 .loading-overlay{position:fixed;inset:0;background:rgba(13,13,26,0.85);display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:998;backdrop-filter:blur(4px);}
 .loading-overlay.show{display:flex;}
 .spinner{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
@@ -129,12 +139,6 @@ select.form-input option{background:var(--card2);}
 </style>
 </head>
 <body>
-
-<div class="liff-init" id="liff-init" style="display:none;">
-  <div style="font-size:52px;">&#x1F3E2;</div>
-  <div class="liff-spinner"></div>
-  <div style="font-size:14px;color:var(--text2);" id="liff-init-text">กำลังเชื่อมต่อ...</div>
-</div>
 
 <div class="app">
 
@@ -193,6 +197,29 @@ select.form-input option{background:var(--card2);}
     </div>
     <div style="text-align:center;padding:0 20px 10px;">
       <div id="model-status" style="font-size:11px;color:var(--text2);"></div>
+    </div>
+  </div>
+
+  <!-- ✅ BRANCH SELECTION (สำหรับพนักงานที่สลับสาขาได้) -->
+  <div class="screen" id="screen-branch">
+    <div class="topbar">
+      <button class="back-btn" id="btn-back-branch">‹ กลับ</button>
+      <div class="topbar-title">เลือกสาขา</div>
+      <div class="topbar-sub" id="branch-screen-sub">เช็คอินเข้างานที่สาขาไหน?</div>
+    </div>
+    <div class="branch-wrap">
+      <div style="background:rgba(108,99,255,0.1);border:1px solid rgba(108,99,255,0.3);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">👋</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;" id="branch-emp-name">-</div>
+          <div style="font-size:11px;color:var(--text2);">กรุณาเลือกสาขาที่คุณจะทำงานวันนี้</div>
+        </div>
+      </div>
+      <div id="branch-list">
+        <!-- สาขาจะถูก render ที่นี่ -->
+      </div>
+      <button class="btn btn-primary" id="btn-branch-confirm" disabled>📍 ยืนยันสาขา</button>
+      <button class="btn btn-secondary" id="btn-branch-cancel">ยกเลิก</button>
     </div>
   </div>
 
@@ -384,7 +411,8 @@ var FACE_THRESHOLD = 0.45;
 var currentMode      = 'in';
 var currentEmp       = null;
 var currentShift     = null;
-var currentBranch    = null;   // ✅ เพิ่มใหม่: เก็บข้อมูลสาขา
+var currentBranch    = null;
+var allBranches      = [];      // ✅ เก็บรายการสาขาทั้งหมด
 var gpsData          = null;
 var modelsLoaded     = false;
 var verifyStream     = null;
@@ -404,10 +432,8 @@ document.addEventListener('DOMContentLoaded', function() {
   lineUserId   = params.get('uid')  || '';
   lineUserName = params.get('name') || '';
   lineUserPic  = params.get('pic')  || '';
-
   if (lineUserId) { showLineProfile(); }
   startApp();
-
   if (!lineUserId) {
     try {
       liff.init({ liffId: LIFF_ID })
@@ -502,11 +528,17 @@ function bindEvents() {
   document.getElementById('btn-menu-out').addEventListener('click',       function(){ startCheckin('out'); });
   document.getElementById('btn-menu-register').addEventListener('click',  openRegister);
   document.getElementById('btn-menu-admin').addEventListener('click',     function(){ window.open(GAS_ADMIN_URL, '_blank'); });
-  document.getElementById('btn-back-gps').addEventListener('click',       function(){ showScreen('screen-home'); });
-  document.getElementById('btn-back-face').addEventListener('click',      function(){ stopAllCameras(); showScreen('screen-gps'); });
-  document.getElementById('btn-back-home').addEventListener('click',      function(){ stopAllCameras(); showScreen('screen-home'); });
-  document.getElementById('btn-gps-refresh').addEventListener('click',    startGPS);
-  document.getElementById('btn-gps-next').addEventListener('click',       goToFaceScan);
+  // Branch
+  document.getElementById('btn-back-branch').addEventListener('click',   function(){ showScreen('screen-home'); });
+  document.getElementById('btn-branch-cancel').addEventListener('click', function(){ showScreen('screen-home'); });
+  document.getElementById('btn-branch-confirm').addEventListener('click',confirmBranch);
+  // GPS
+  document.getElementById('btn-back-gps').addEventListener('click',  function(){ showScreen('screen-home'); });
+  document.getElementById('btn-back-face').addEventListener('click', function(){ stopAllCameras(); showScreen('screen-gps'); });
+  document.getElementById('btn-back-home').addEventListener('click', function(){ stopAllCameras(); showScreen('screen-home'); });
+  document.getElementById('btn-gps-refresh').addEventListener('click', startGPS);
+  document.getElementById('btn-gps-next').addEventListener('click',   goToFaceScan);
+  // Register
   document.getElementById('btn-back-reg').addEventListener('click',       function(){ stopAllCameras(); showScreen('screen-home'); });
   document.getElementById('btn-reg-cancel').addEventListener('click',     function(){ stopAllCameras(); showScreen('screen-home'); });
   document.getElementById('btn-reg-next').addEventListener('click',       goToRegStep2);
@@ -557,7 +589,7 @@ function showStatusDialog(opts) {
 }
 
 // ==========================================
-// ✅ LOAD SHIFT + BRANCH & CHECK STATUS
+// LOAD SHIFT + BRANCH & CHECK STATUS
 // ==========================================
 function loadShiftAndGo() {
   showLoading('กำลังตรวจสอบสถานะการเข้างาน...');
@@ -578,18 +610,92 @@ function loadShiftAndGo() {
         }
       }
 
-      // ✅ หาสาขาของพนักงาน
-      currentBranch = null;
-      if (Array.isArray(branches)) {
-        for (var j = 0; j < branches.length; j++) {
-          if (branches[j].branch_id === currentEmp.branch_id) {
-            currentBranch = branches[j]; break;
+      // เก็บรายการสาขาทั้งหมด
+      allBranches = Array.isArray(branches) ? branches : [];
+
+      // ✅ ตรวจสอบว่าพนักงานมี branch_id ประจำไหม
+      var empBranchId = currentEmp.branch_id ? String(currentEmp.branch_id).trim() : '';
+
+      if (empBranchId) {
+        // มี branch_id ประจำ → หาสาขาแล้วไป GPS เลย
+        currentBranch = null;
+        for (var j = 0; j < allBranches.length; j++) {
+          if (String(allBranches[j].branch_id) === empBranchId) {
+            currentBranch = allBranches[j]; break;
           }
         }
+        return fetch(API_URL + '?action=getTodayStatus&emp_id=' + encodeURIComponent(currentEmp.emp_id));
+      } else {
+        // ไม่มี branch_id → แสดงหน้าเลือกสาขา
+        hideLoading();
+        openBranchSelection();
+        return null;
       }
-
-      return fetch(API_URL + '?action=getTodayStatus&emp_id=' + encodeURIComponent(currentEmp.emp_id));
     })
+    .then(function(r){
+      if (!r) return null;
+      return r.json();
+    })
+    .then(function(status) {
+      if (!status) return;
+      hideLoading();
+      if (status && typeof status.checked_in !== 'undefined') { checkStatusAndGo(status); }
+      else { goToGPSScreen(); }
+    })
+    .catch(function(){ hideLoading(); goToGPSScreen(); });
+}
+
+// ==========================================
+// ✅ BRANCH SELECTION SCREEN
+// ==========================================
+function openBranchSelection() {
+  document.getElementById('branch-emp-name').textContent = currentEmp.name || '-';
+  document.getElementById('branch-screen-sub').textContent =
+    currentMode === 'in' ? 'เช็คอินเข้างานที่สาขาไหน?' : 'เช็คเอาท์ออกงานที่สาขาไหน?';
+
+  // Reset selection
+  currentBranch = null;
+  document.getElementById('btn-branch-confirm').disabled = true;
+
+  // Render รายการสาขา
+  var list = document.getElementById('branch-list');
+  if (!allBranches || allBranches.length === 0) {
+    list.innerHTML = '<div class="alert-card danger"><div class="alert-icon">❌</div><div class="alert-title">ไม่พบข้อมูลสาขา</div><div class="alert-desc">กรุณาติดต่อ HR</div></div>';
+    showScreen('screen-branch');
+    return;
+  }
+
+  list.innerHTML = allBranches.map(function(b, idx) {
+    return '<div class="branch-card" id="branch-item-' + idx + '" onclick="selectBranch(' + idx + ')">'
+      + '<div class="branch-card-icon">🏢</div>'
+      + '<div class="branch-card-info">'
+      + '<div class="branch-card-name">' + (b.branch_name || b.branch_id) + '</div>'
+      + '<div class="branch-card-coord">📍 ' + (b.lat || '-') + ', ' + (b.lng || '-') + '</div>'
+      + '</div>'
+      + '<div class="branch-card-check">✓</div>'
+      + '</div>';
+  }).join('');
+
+  showScreen('screen-branch');
+}
+
+function selectBranch(idx) {
+  // ล้าง selected ทั้งหมด
+  var cards = document.querySelectorAll('.branch-card');
+  cards.forEach(function(c){ c.classList.remove('selected'); });
+
+  // เลือกอันนี้
+  var selected = document.getElementById('branch-item-' + idx);
+  if (selected) selected.classList.add('selected');
+
+  currentBranch = allBranches[idx];
+  document.getElementById('btn-branch-confirm').disabled = false;
+}
+
+function confirmBranch() {
+  if (!currentBranch) { showToast('กรุณาเลือกสาขาก่อน', 'error'); return; }
+  showLoading('กำลังตรวจสอบสถานะ...');
+  fetch(API_URL + '?action=getTodayStatus&emp_id=' + encodeURIComponent(currentEmp.emp_id))
     .then(function(r){ return r.json(); })
     .then(function(status) {
       hideLoading();
@@ -685,7 +791,6 @@ function goToRegStep2() {
   if (!name)         { showToast('กรุณากรอกชื่อ-นามสกุล', 'error'); return; }
   if (!shift)        { showToast('กรุณาเลือกกะงาน', 'error'); return; }
   if (!modelsLoaded) { showToast('⏳ Face Recognition กำลังโหลด รอสักครู่', 'error'); return; }
-
   document.getElementById('reg-step1').style.display = 'none';
   document.getElementById('reg-step2').style.display = 'block';
   document.getElementById('btn-reg-retry-cam').style.display = 'none';
@@ -698,9 +803,7 @@ function startReg2Camera() {
   document.getElementById('reg2-status').textContent   = 'กำลังเปิดกล้อง...';
   document.getElementById('btn-reg-capture').disabled  = true;
   document.getElementById('reg2-face-frame').className = 'face-frame';
-
   if (reg2Stream) { reg2Stream.getTracks().forEach(function(t){ t.stop(); }); reg2Stream = null; }
-
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     .then(function(stream) {
       reg2Stream = stream;
@@ -708,7 +811,7 @@ function startReg2Camera() {
       v.srcObject = stream;
       function onReady() {
         v.play().catch(function(){ v.muted = true; v.play().catch(function(){}); });
-        document.getElementById('reg2-status').textContent   = '✅ กล้องพร้อม กดปุ่มถ่ายรูป';
+        document.getElementById('reg2-status').textContent  = '✅ กล้องพร้อม กดปุ่มถ่ายรูป';
         document.getElementById('btn-reg-capture').disabled = false;
       }
       if (v.readyState >= 1) { onReady(); } else { v.onloadedmetadata = onReady; }
@@ -762,7 +865,6 @@ function doRegCapture() {
   frame.className    = 'face-frame scanning';
   status.textContent = '🔍 กำลังตรวจจับใบหน้า...';
   document.getElementById('btn-reg-capture').disabled = true;
-
   faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
     .withFaceLandmarks().withFaceDescriptor()
     .then(function(det) {
@@ -890,11 +992,10 @@ function startCheckin(mode) {
 }
 
 // ==========================================
-// ✅ GPS — ใช้พิกัดสาขาอัตโนมัติ
+// GPS
 // ==========================================
 function goToGPSScreen() {
   gpsData = null;
-
   var branchName   = currentBranch ? currentBranch.branch_name : '';
   var branchRadius = currentBranch
     ? (parseInt(currentBranch.radius_m) || 70)
@@ -905,7 +1006,6 @@ function goToGPSScreen() {
     (currentShift ? currentShift.shift_name + ' · ' : '') +
     (branchName   ? branchName + ' · '               : '') +
     (currentMode === 'in' ? 'เช็คอินเข้างาน' : 'เช็คเอาท์ออกงาน');
-
   document.getElementById('g-branch').textContent   = branchName || '-';
   document.getElementById('g-radius').textContent   = branchRadius + ' เมตร';
   document.getElementById('g-accuracy').textContent = 'กำลังตรวจสอบ...';
@@ -926,12 +1026,10 @@ function startGPS() {
   document.getElementById('g-accuracy-warn').style.display  = 'none';
   document.getElementById('btn-gps-next').disabled          = true;
   if (!navigator.geolocation) { showGPSError('อุปกรณ์ไม่รองรับ GPS'); return; }
-
   navigator.geolocation.getCurrentPosition(
     function(pos) {
       var acc = Math.round(pos.coords.accuracy);
       gpsData = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: acc };
-
       if (acc > gpsMaxAccuracy) {
         document.getElementById('g-accuracy').innerHTML =
           '<span style="color:var(--red);">±' + acc + ' เมตร ❌</span>';
@@ -944,7 +1042,6 @@ function startGPS() {
             '<div class="alert-card danger"><div class="alert-icon">📡</div>'
             + '<div class="alert-title">GPS ไม่แม่นยำพอ</div>'
             + '<div class="alert-desc">ความแม่นยำ ±' + acc + ' เมตร<br>'
-            + 'อุปกรณ์ใช้ตำแหน่งโดยประมาณ (Wi-Fi/เครือข่าย)<br><br>'
             + '<strong>กรุณาเปิดสิทธิ์ใหม่ → เลือก "แน่นอน"</strong></div></div>';
           document.getElementById('btn-gps-next').disabled = true;
           return;
@@ -967,7 +1064,6 @@ function startGPS() {
 }
 
 function processGPS() {
-  // ✅ ใช้พิกัดสาขา — ถ้าไม่มีสาขา fallback พิกัดพนักงาน
   var targetLat, targetLng, radius, branchName;
   if (currentBranch && currentBranch.lat && currentBranch.lng) {
     targetLat  = parseFloat(currentBranch.lat);
@@ -980,19 +1076,15 @@ function processGPS() {
     radius     = parseInt(currentEmp.radius_m) || 50;
     branchName = 'ที่ทำงาน';
   }
-
   var distance = calcDistance(gpsData.lat, gpsData.lng, targetLat, targetLng);
   var isInZone = distance <= radius;
-
   document.getElementById('g-radius').textContent  = radius + ' เมตร';
   document.getElementById('g-distance').innerHTML  =
     '<span class="' + (isInZone ? 'zone-ok' : 'zone-fail') + '">' + distance + ' เมตร</span>';
   document.getElementById('g-coord').textContent   =
     gpsData.lat.toFixed(5) + ', ' + gpsData.lng.toFixed(5);
-
   var rb = document.getElementById('gps-result-block');
   rb.style.display = 'block';
-
   if (isInZone) {
     rb.innerHTML =
       '<div class="alert-card" style="background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.3);">'
@@ -1045,10 +1137,8 @@ function startVerifyCamera() {
   document.getElementById('face-sub-text').textContent    = 'หันหน้าตรง มองกล้องค้างไว้';
   document.getElementById('confidence-fill').style.width  = '0%';
   document.getElementById('confidence-text').textContent  = 'ความมั่นใจ: 0%';
-
   if (verifyStream) { verifyStream.getTracks().forEach(function(t){ t.stop(); }); verifyStream = null; }
   if (autoScanInterval) { clearInterval(autoScanInterval); autoScanInterval = null; }
-
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     .then(function(stream) {
       verifyStream = stream;
