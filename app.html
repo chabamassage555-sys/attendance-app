@@ -376,8 +376,8 @@ select.form-input option{background:var(--card2);}
 <div class="toast" id="toast"></div>
 
 <script>
-var API_URL        = 'https://script.google.com/macros/s/AKfycbzGBuubGw-Ojf5E-zRA-W5xEsOk8pWovxdDvc3my5mnoJ1uhbi2wFyLrMCsADRiVTQB/exec';
-var LIFF_ID        = '2009546104-Jdpahe6d';
+var API_URL        = 'https://script.google.com/macros/s/AKfycbwGI1TQFFxDC2XdqR3P9It2LZP-gKsZEu_WMuI-gN5MQiEDdtKWL9nd-5jcbRiFKq0I_w/exec';
+var LIFF_ID        = '2009043114-vjDykqrq';
 var GAS_ADMIN_URL  = API_URL + '?action=getAdminPage';
 var MODEL_URL      = 'https://justadudewhohacks.github.io/face-api.js/models';
 var FACE_THRESHOLD = 0.45;
@@ -395,6 +395,8 @@ var lineUserName     = '';
 var lineUserPic      = '';
 var checkActionFired = false;
 var gpsMaxAccuracy   = 100; // โหลดจาก Config: GPS_ACCURACY_MAX (เมตร)
+var allBranches      = []; // โหลดจาก Branches sheet
+var detectedBranch   = null; // สาขาที่ตรวจจับได้
 
 // ==========================================
 // INIT
@@ -438,6 +440,7 @@ function startApp() {
   bindEvents();
   loadFaceModels();
   loadGpsConfig();
+  loadBranchesData();
   if (lineUserId) checkAutoLogin();
 }
 
@@ -452,19 +455,52 @@ function loadGpsConfig() {
     .catch(function(){});
 }
 
+function loadBranchesData() {
+  fetch(API_URL + '?action=getBranches')
+    .then(function(r){ return r.json(); })
+    .then(function(branches) {
+      if (Array.isArray(branches)) { allBranches = branches; }
+    })
+    .catch(function(){});
+}
+
+// หาสาขาที่ใกล้ที่สุดและอยู่ในรัศมี
+function detectNearestBranch(lat, lng) {
+  if (!allBranches || allBranches.length === 0) return null;
+  var best = null, bestDist = Infinity;
+  for (var i = 0; i < allBranches.length; i++) {
+    var b    = allBranches[i];
+    var bLat = parseFloat(b.lat);
+    var bLng = parseFloat(b.lng);
+    var bRad = parseInt(b.radius_m) || 100;
+    if (isNaN(bLat) || isNaN(bLng)) continue;
+    var d = calcDistance(lat, lng, bLat, bLng);
+    if (d <= bRad && d < bestDist) {
+      bestDist = d;
+      best = { branch_id: b.branch_id, branch_name: b.branch_name, distance: d, radius: bRad };
+    }
+  }
+  return best; // null = ไม่มีสาขาในรัศมี
+}
+
+// หาสาขาที่ใกล้ที่สุด (ไม่สนรัศมี — สำหรับแสดง error)
+function findNearestBranchAny(lat, lng) {
+  if (!allBranches || allBranches.length === 0) return null;
+  var best = null, bestDist = Infinity;
+  for (var i = 0; i < allBranches.length; i++) {
+    var b = allBranches[i];
+    var d = calcDistance(lat, lng, parseFloat(b.lat), parseFloat(b.lng));
+    if (d < bestDist) { bestDist = d; best = { name: b.branch_name, distance: d }; }
+  }
+  return best;
+}
+
 function showLineProfile() {
   if (!lineUserId) return;
   var pic = document.getElementById('profile-pic');
   if (lineUserPic) { pic.src = lineUserPic; } else { pic.style.display = 'none'; }
   document.getElementById('profile-name').textContent   = lineUserName || '-';
   document.getElementById('profile-sub').textContent    = 'เชื่อมต่อ LINE ✅';
-  document.getElementById('profile-card').style.display = 'flex';
-}
-
-function showGuestProfile() {
-  document.getElementById('profile-pic').style.display  = 'none';
-  document.getElementById('profile-name').textContent   = 'ผู้ใช้งาน';
-  document.getElementById('profile-sub').textContent    = '⚠️ กรุณาเปิดผ่าน LINE เพื่อเช็คอิน';
   document.getElementById('profile-card').style.display = 'flex';
 }
 
@@ -1009,22 +1045,73 @@ function startGPS() {
 }
 
 function processGPS() {
-  var emp      = currentEmp;
-  var distance = calcDistance(gpsData.lat, gpsData.lng, parseFloat(emp.location_lat), parseFloat(emp.location_lng));
-  var radius   = parseInt(emp.radius_m) || 50;
-  var isInZone = distance <= radius;
-  // g-accuracy แสดงผลแล้วใน startGPS พร้อม ✅/❌
-  document.getElementById('g-distance').innerHTML   = '<span class="' + (isInZone ? 'zone-ok' : 'zone-fail') + '">' + distance + ' เมตร</span>';
-  document.getElementById('g-coord').textContent    = gpsData.lat.toFixed(5) + ', ' + gpsData.lng.toFixed(5);
+  var lat = gpsData.lat;
+  var lng = gpsData.lng;
+  document.getElementById('g-coord').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
   var rb = document.getElementById('gps-result-block');
   rb.style.display = 'block';
-  if (isInZone) {
-    rb.innerHTML = '<div class="alert-card" style="background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.3);"><div class="alert-icon">✅</div><div style="font-size:16px;font-weight:700;color:var(--green);">อยู่ในพื้นที่</div><div class="alert-desc">ห่างจากที่ทำงาน ' + distance + ' เมตร<br>กดปุ่มด้านล่างเพื่อสแกนใบหน้า</div></div>';
-    document.getElementById('btn-gps-next').disabled = false;
+
+  // ── ถ้ามี Branches sheet → ตรวจจับสาขาอัตโนมัติ ──
+  if (allBranches && allBranches.length > 0) {
+    detectedBranch = detectNearestBranch(lat, lng);
+
+    if (detectedBranch) {
+      // ✅ อยู่ในสาขา
+      var dist = detectedBranch.distance;
+      document.getElementById('g-distance').innerHTML =
+        '<span class="zone-ok">' + dist + ' เมตร</span>';
+      rb.innerHTML =
+        '<div class="alert-card" style="background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.3);">' +
+        '<div class="alert-icon">✅</div>' +
+        '<div style="font-size:16px;font-weight:700;color:var(--green);">อยู่ในพื้นที่</div>' +
+        '<div class="alert-desc">📍 <strong>' + detectedBranch.branch_name + '</strong><br>' +
+        'ห่าง ' + dist + ' เมตร · กดปุ่มด้านล่างเพื่อสแกนใบหน้า</div></div>';
+      document.getElementById('btn-gps-next').disabled = false;
+
+    } else {
+      // ❌ ไม่อยู่ในสาขาใดเลย
+      detectedBranch = null;
+      var nearest = findNearestBranchAny(lat, lng);
+      var nearestText = nearest
+        ? 'สาขาใกล้ที่สุด: <strong>' + nearest.name + '</strong> (' + nearest.distance + ' เมตร)'
+        : 'ไม่พบสาขาในระบบ';
+      document.getElementById('g-distance').innerHTML =
+        '<span class="zone-fail">' + (nearest ? nearest.distance : '-') + ' เมตร</span>';
+      rb.innerHTML =
+        '<div class="alert-card danger"><div class="alert-icon">🚫</div>' +
+        '<div class="alert-title">อยู่นอกพื้นที่ทุกสาขา!</div>' +
+        '<div class="alert-desc">' + nearestText + '<br><br><strong>ไม่สามารถเช็คอินได้</strong></div></div>';
+      document.getElementById('btn-gps-next').disabled = true;
+      showToast('🚫 อยู่นอกพื้นที่', 'error');
+    }
+
   } else {
-    rb.innerHTML = '<div class="alert-card danger"><div class="alert-icon">🚫</div><div class="alert-title">อยู่นอกพื้นที่!</div><div class="alert-desc">ระยะห่าง <strong>' + distance + ' เมตร</strong><br>รัศมีที่อนุญาต <strong>' + radius + ' เมตร</strong><br><br><strong>ไม่สามารถเช็คอินได้</strong></div></div>';
-    document.getElementById('btn-gps-next').disabled = true;
-    showToast('🚫 อยู่นอกพื้นที่', 'error');
+    // ── Fallback: ไม่มี Branches → ใช้พิกัดพนักงานแบบเดิม ──
+    var emp      = currentEmp;
+    var distance = calcDistance(lat, lng, parseFloat(emp.location_lat), parseFloat(emp.location_lng));
+    var radius   = parseInt(emp.radius_m) || 100;
+    var isInZone = distance <= radius;
+    document.getElementById('g-distance').innerHTML =
+      '<span class="' + (isInZone ? 'zone-ok' : 'zone-fail') + '">' + distance + ' เมตร</span>';
+    if (isInZone) {
+      detectedBranch = { branch_id: 'BR_MAIN', branch_name: 'สาขาหลัก', distance: distance };
+      rb.innerHTML =
+        '<div class="alert-card" style="background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.3);">' +
+        '<div class="alert-icon">✅</div>' +
+        '<div style="font-size:16px;font-weight:700;color:var(--green);">อยู่ในพื้นที่</div>' +
+        '<div class="alert-desc">ห่างจากที่ทำงาน ' + distance + ' เมตร</div></div>';
+      document.getElementById('btn-gps-next').disabled = false;
+    } else {
+      detectedBranch = null;
+      rb.innerHTML =
+        '<div class="alert-card danger"><div class="alert-icon">🚫</div>' +
+        '<div class="alert-title">อยู่นอกพื้นที่!</div>' +
+        '<div class="alert-desc">ระยะห่าง <strong>' + distance + ' เมตร</strong><br>' +
+        'รัศมีที่อนุญาต <strong>' + radius + ' เมตร</strong><br><br>' +
+        '<strong>ไม่สามารถเช็คอินได้</strong></div></div>';
+      document.getElementById('btn-gps-next').disabled = true;
+      showToast('🚫 อยู่นอกพื้นที่', 'error');
+    }
   }
 }
 
